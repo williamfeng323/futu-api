@@ -1,7 +1,7 @@
 syntax = "proto2";
 package Qot_GetReference;
 option java_package = "com.futu.openapi.pb";
-option go_package = "github.com/williamfeng323/futu-api/pb/qotgetreference";
+option go_package = "github.com/williamfeng323/futu-api/protos/pb/qotgetreference";
 
 import "Common.proto";
 import "Qot_Common.proto";
