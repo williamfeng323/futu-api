@@ -34,6 +34,7 @@ type Client struct {
 	conn        net.Conn
 	logger      Logger
 	close       chan int
+	isConnected bool
 }
 
 func NewClient(ctx context.Context, logger Logger, opts ...Option) *Client {
@@ -49,6 +50,7 @@ func NewClient(ctx context.Context, logger Logger, opts ...Option) *Client {
 	c := Client{
 		ctx:    ctx,
 		logger: logger,
+		close:  make(chan int),
 	}
 	c.opts = &defaultOptions
 	for _, opt := range opts {
@@ -58,8 +60,13 @@ func NewClient(ctx context.Context, logger Logger, opts ...Option) *Client {
 }
 
 func (c *Client) Close() error {
+	if err := c.conn.Close(); err != nil {
+		c.logger.Errorf("close connection failed: %v", err)
+		return err
+	}
+	c.isConnected = false
 	c.close <- 1
-	return c.conn.Close()
+	return nil
 }
 
 func (c *Client) DoRequest(protoId uint32, request proto.Message, response proto.Message) error {
@@ -167,6 +174,10 @@ func (c *Client) WatchMessage() {
 	//scanner.Buffer(buf, bufio.MaxScanTokenSize)
 
 	for scanner.Scan() {
+		if !c.isConnected {
+			c.logger.Info("futu api client is disconnected")
+			return
+		}
 		scannedPack := new(Pack)
 		err := scannedPack.Unpack(scanner.Bytes())
 		if err != nil {
@@ -191,7 +202,7 @@ func (c *Client) Connect() error {
 		return fmt.Errorf("failed to establish tcp connection to %s", c.opts.addr)
 	}
 	c.conn = conn
-
+	c.isConnected = true
 	go func() {
 		c.logger.Info("futu api client is established, addr:", c.opts.addr)
 		c.WatchMessage()
@@ -199,15 +210,19 @@ func (c *Client) Connect() error {
 	c.initConnect()
 	go func() {
 		tm := time.NewTicker(c.opts.keepAlive)
-		select {
-		case <-c.close:
-			c.logger.Info("futu api client done")
-			tm.Stop()
-		case <-c.ctx.Done():
-			c.logger.Info("futu api client done")
-			tm.Stop()
-		case <-tm.C:
-			c.keepAlive()
+		for {
+			select {
+			case <-c.close:
+				c.logger.Info("futu api client done")
+				close(c.close)
+				tm.Stop()
+			case <-c.ctx.Done():
+				c.logger.Info("futu api client done")
+				close(c.close)
+				tm.Stop()
+			case <-tm.C:
+				c.keepAlive()
+			}
 		}
 	}()
 	return nil

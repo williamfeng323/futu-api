@@ -13,7 +13,7 @@ import (
 )
 
 func TestClient(t *testing.T) {
-	client := NewClient(context.Background(), nil)
+	client := NewClient(context.Background(), nil, WithAddr("localhost:11111"), WithKeepAlive(5*time.Second), WithTimeout(10*time.Second), WithMaxRetry(3), WithClientId("Futu-API"))
 	assert.NotNil(t, client)
 	err := client.Connect()
 	assert.Nil(t, err)
@@ -29,7 +29,7 @@ func TestClient(t *testing.T) {
 	client.DoRequest(uint32(3202), &req, &resp)
 	fmt.Printf("%s", ConvertByte2String(resp.S2C.ProtoReflect().GetUnknown(), GB18030))
 	assert.NotNil(t, &resp.S2C)
-	time.Sleep(30 * time.Second)
+	time.Sleep(5 * time.Second)
 	client.Close()
 }
 
